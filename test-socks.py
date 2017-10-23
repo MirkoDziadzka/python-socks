@@ -29,20 +29,27 @@ field 4: 4 arbitrary bytes, which should be ignored
 
 """
 
-def create_connection_via_socks(socks_addr, ip, port):
-    """ works like socket.crreate_connection but with a socks proxy in between
+def make_connect_message(ip, port):
+    """ create a SOCKS 4 connect message
     """
-    s = socket.create_connection(socks_addr)
-    # now we have a socket connection to the socks proxy. Now ask
-    # the socks server to connect to our target.
     message = b''
     message += b"\x04"  # version
     message += b"\x01"  # want to connect
     message += struct.pack("!H", port)
     message += socket.inet_aton(ip)  # add ip
     message += b"\x00"  # empty string
-    s.send(message)
-    n, status = struct.unpack("BBxxxxxx", s.recv(8))
+    return message
+
+def create_connection_via_socks(socks_addr, ip, port):
+    """ works like socket.crreate_connection but with a socks proxy in between
+    """
+    s = socket.create_connection(socks_addr)
+    # now we have a socket connection to the socks proxy. Now ask
+    # the socks server to connect to our target.
+    connect_request = make_connect_message(ip, port)
+    s.send(connect_request)
+    connect_response = s.recv(8)
+    n, status = struct.unpack("BBxxxxxx", connect_response)
     assert n == 0x00, "no a socks proxy?"
     if status != 0x5a:
         raise Exception("socks connection failed with code 0x%02x" % status)
