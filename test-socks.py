@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import socket
 import struct
 
@@ -29,10 +31,14 @@ field 4: 4 arbitrary bytes, which should be ignored
 
 """
 
+
+class SocksException(Exception):
+    pass
+
+
 def make_connect_message(ip, port):
-    """ create a SOCKS 4 connect message
-    """
-    message = b''
+    """create a SOCKS 4 connect message"""
+    message = b""
     message += b"\x04"  # version
     message += b"\x01"  # want to connect
     message += struct.pack("!H", port)
@@ -40,9 +46,9 @@ def make_connect_message(ip, port):
     message += b"\x00"  # empty string
     return message
 
+
 def create_connection_via_socks(socks_addr, ip, port):
-    """ works like socket.crreate_connection but with a socks proxy in between
-    """
+    """works like socket.crreate_connection but with a socks proxy in between"""
     s = socket.create_connection(socks_addr)
     # now we have a socket connection to the socks proxy. Now ask
     # the socks server to connect to our target.
@@ -51,12 +57,16 @@ def create_connection_via_socks(socks_addr, ip, port):
     connect_response = s.recv(8)
     n, status = struct.unpack("BBxxxxxx", connect_response)
     assert n == 0x00, "no a socks proxy?"
-    if status != 0x5a:
-        raise Exception("socks connection failed with code 0x%02x" % status)
+    if status != 0x5A:
+        raise SocksException("socks connection failed with code 0x%02x" % status)
     # Ok ... from now on the connection should be transparent
     return s
 
-if __name__ == '__main__':
-    s = create_connection_via_socks(("::1", 1080), "78.47.48.145" , 80)
-    s.send("GET / HTTP/1.0\r\nHost: bithalde.de\r\n\r\n")
-    print(s.recv(42))
+
+if __name__ == "__main__":
+    hostname = "bithalde.de"
+    ip = socket.gethostbyname(hostname)
+    s = create_connection_via_socks(("::1", 1080), ip, 80)
+    s.send(b"GET / HTTP/1.0\r\nHost: " + hostname.encode() + b"\r\n\r\n")
+    while ch := s.recv(1):
+        print(ch.decode(), end="")
